@@ -21,11 +21,9 @@
 
 
 #import <Foundation/Foundation.h>
-
 #import "AFURLResponseSerialization.h"
 #import "AFURLRequestSerialization.h"
 #import "AFSecurityPolicy.h"
-#import "AFCompatibilityMacros.h"
 #if !TARGET_OS_WATCH
 #import "AFNetworkReachabilityManager.h"
 #endif
@@ -33,14 +31,27 @@
 /**
  `AFURLSessionManager` creates and manages an `NSURLSession` object based on a specified `NSURLSessionConfiguration` object, which conforms to `<NSURLSessionTaskDelegate>`, `<NSURLSessionDataDelegate>`, `<NSURLSessionDownloadDelegate>`, and `<NSURLSessionDelegate>`.
 
+ ===========
+ AFURLSessionManager创建并且管理这一个基于`NSURLSessionConfiguration`创建的`NSURLSession`对象，并且遵循`<NSURLSessionTaskDelegate>`, `<NSURLSessionDataDelegate>`, `<NSURLSessionDownloadDelegate>`, and `<NSURLSessionDelegate>`
+ 所有的urlsession的代理必须继承或者实现
+ ============
+ 
  ## Subclassing Notes
 
  This is the base class for `AFHTTPSessionManager`, which adds functionality specific to making HTTP requests. If you are looking to extend `AFURLSessionManager` specifically for HTTP, consider subclassing `AFHTTPSessionManager` instead.
-
+ 
+ ============
+ 这是AFHTTPSessionManager的父类，为发送HTTP请求而增加了具体的功能。如果你打算扩展HTTP 来做HTTP相关的功能，可以直接使用AFHTTPSessionManager
+ ============
+ 
  ## NSURLSession & NSURLSessionTask Delegate Methods
 
  `AFURLSessionManager` implements the following delegate methods:
 
+============
+ AFURLSessionManager 实现了以下的代理方法
+============
+ 
  ### `NSURLSessionDelegate`
 
  - `URLSession:didBecomeInvalidWithError:`
@@ -69,7 +80,11 @@
  - `URLSession:downloadTask:didResumeAtOffset:expectedTotalBytes:`
 
  If any of these methods are overridden in a subclass, they _must_ call the `super` implementation first.
-
+ 
+  ============
+ 如果要在子类中重写这些方法，那必须先调用父类的实现（否则你会漏掉afn作者在父类中的一些处理）
+  ============
+ 
  ## Network Reachability Monitoring
 
  Network reachability status and change monitoring is available through the `reachabilityManager` property. Applications may choose to monitor network reachability conditions in order to prevent or suspend any outbound requests. See `AFNetworkReachabilityManager` for more details.
@@ -88,16 +103,20 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+
+// 遵循了NSURLSession的各个协议 只要设置了一个代理，就会一起设置这四个代理。 而最终会根据task的类型来触发哪种代理
 @interface AFURLSessionManager : NSObject <NSURLSessionDelegate, NSURLSessionTaskDelegate, NSURLSessionDataDelegate, NSURLSessionDownloadDelegate, NSSecureCoding, NSCopying>
 
 /**
  The managed session.
  */
+// NSURLSession 作为一个实例变量，AFN发起的网络请求都是通过该session创建的task实现的
 @property (readonly, nonatomic, strong) NSURLSession *session;
 
 /**
  The operation queue on which delegate callbacks are run.
  */
+// 为session绑定的代理回调所使用的队列 默认最大并发数为1
 @property (readonly, nonatomic, strong) NSOperationQueue *operationQueue;
 
 /**
@@ -105,6 +124,8 @@ NS_ASSUME_NONNULL_BEGIN
 
  @warning `responseSerializer` must not be `nil`.
  */
+
+// 通过`dataTaskWithRequest:success:failure:`方法从服务端得到的响应数据，通过 response serializer自动进行验证和序列化。默认使用AFJSONResponseSerializer
 @property (nonatomic, strong) id <AFURLResponseSerialization> responseSerializer;
 
 ///-------------------------------
@@ -114,6 +135,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  The security policy used by created session to evaluate server trust for secure connections. `AFURLSessionManager` uses the `defaultPolicy` unless otherwise specified.
  */
+// https证书校验对象 security policy被用来校验服务端安全信任连接 使用defaultPolicy初始化
 @property (nonatomic, strong) AFSecurityPolicy *securityPolicy;
 
 #if !TARGET_OS_WATCH
@@ -124,6 +146,8 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  The network reachability manager. `AFURLSessionManager` uses the `sharedManager` by default.
  */
+
+// 网络状态监听管理   默认使用sharedManager
 @property (readwrite, nonatomic, strong) AFNetworkReachabilityManager *reachabilityManager;
 #endif
 
@@ -134,21 +158,25 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  The data, upload, and download tasks currently run by the managed session.
  */
+// 在session中的dataTask uploadTask downloadTask  指定数组内容的类型
 @property (readonly, nonatomic, strong) NSArray <NSURLSessionTask *> *tasks;
 
 /**
  The data tasks currently run by the managed session.
  */
+// 在session中的dataTask的集合
 @property (readonly, nonatomic, strong) NSArray <NSURLSessionDataTask *> *dataTasks;
 
 /**
  The upload tasks currently run by the managed session.
  */
+// 在session中的uploadTask的集合
 @property (readonly, nonatomic, strong) NSArray <NSURLSessionUploadTask *> *uploadTasks;
 
 /**
  The download tasks currently run by the managed session.
  */
+// 在session中的downloadTask的集合
 @property (readonly, nonatomic, strong) NSArray <NSURLSessionDownloadTask *> *downloadTasks;
 
 ///-------------------------------
@@ -158,11 +186,13 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  The dispatch queue for `completionBlock`. If `NULL` (default), the main queue is used.
  */
+// 统一在completionQueue中执行completionBlock  默认null，则会使用主队列
 @property (nonatomic, strong, nullable) dispatch_queue_t completionQueue;
 
 /**
  The dispatch group for `completionBlock`. If `NULL` (default), a private dispatch group is used.
  */
+// completionBlock的任务组  默认会使用私有的一个group  dispatch_group_notify
 @property (nonatomic, strong, nullable) dispatch_group_t completionGroup;
 
 ///---------------------------------
@@ -176,6 +206,7 @@ NS_ASSUME_NONNULL_BEGIN
 
  @see https://github.com/AFNetworking/AFNetworking/issues/1675
  */
+// 在此属性为YSE时，如果在后台创建上传任务失败，则会尝试再次创建。 在iOS 7调用uploadTaskWithRequest:fromFile:时，即使文件存在也可能会返回nil
 @property (nonatomic, assign) BOOL attemptsToRecreateUploadTasksForBackgroundSessions;
 
 ///---------------------
@@ -189,12 +220,21 @@ NS_ASSUME_NONNULL_BEGIN
 
  @return A manager for a newly-created session.
  */
+
+// 创建一个manager，指定一个NSURLSessionConfiguration
 - (instancetype)initWithSessionConfiguration:(nullable NSURLSessionConfiguration *)configuration NS_DESIGNATED_INITIALIZER;
 
 /**
  Invalidates the managed session, optionally canceling pending tasks.
 
  @param cancelPendingTasks Whether or not to cancel pending tasks.
+ */
+
+// 是否根据取消未完成的任务来使session失效
+/* NSURLSession有两个方法：
+ 
+ -(void)finishTasksAndInvalidate; 标示待完成所有的任务后失效
+ -(void)invalidateAndCancel; 标示 立即失效，未完成的任务也将结束
  */
 - (void)invalidateSessionCancelingTasks:(BOOL)cancelPendingTasks;
 
@@ -208,8 +248,9 @@ NS_ASSUME_NONNULL_BEGIN
  @param request The HTTP request for the request.
  @param completionHandler A block object to be executed when the task finishes. This block has no return value and takes three arguments: the server response, the response object created by that serializer, and the error that occurred, if any.
  */
+// 根据request创建一个datatask 并且可以设置完成后的block，block中的参数有 response对象，经过序列化后的object对象，以及error对象
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
-                            completionHandler:(nullable void (^)(NSURLResponse *response, id _Nullable responseObject,  NSError * _Nullable error))completionHandler DEPRECATED_ATTRIBUTE;
+                            completionHandler:(nullable void (^)(NSURLResponse *response, id _Nullable responseObject,  NSError * _Nullable error))completionHandler;
 
 /**
  Creates an `NSURLSessionDataTask` with the specified request.
@@ -219,6 +260,7 @@ NS_ASSUME_NONNULL_BEGIN
  @param downloadProgressBlock A block object to be executed when the download progress is updated. Note this block is called on the session queue, not the main queue.
  @param completionHandler A block object to be executed when the task finishes. This block has no return value and takes three arguments: the server response, the response object created by that serializer, and the error that occurred, if any.
  */
+// 根据request创建一个datatask，并且可以设置上传进度的block 下载进度的block 完成的block。不过都是在session的队列中
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
                                uploadProgress:(nullable void (^)(NSProgress *uploadProgress))uploadProgressBlock
                              downloadProgress:(nullable void (^)(NSProgress *downloadProgress))downloadProgressBlock
@@ -238,6 +280,8 @@ NS_ASSUME_NONNULL_BEGIN
 
  @see `attemptsToRecreateUploadTasksForBackgroundSessions`
  */
+// 通过request和本地文件url创建一个uploadTask
+
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromFile:(NSURL *)fileURL
                                          progress:(nullable void (^)(NSProgress *uploadProgress))uploadProgressBlock
@@ -251,6 +295,7 @@ NS_ASSUME_NONNULL_BEGIN
  @param uploadProgressBlock A block object to be executed when the upload progress is updated. Note this block is called on the session queue, not the main queue.
  @param completionHandler A block object to be executed when the task finishes. This block has no return value and takes three arguments: the server response, the response object created by that serializer, and the error that occurred, if any.
  */
+// 通过request和要提交的数据data创建一个uploadTask
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromData:(nullable NSData *)bodyData
                                          progress:(nullable void (^)(NSProgress *uploadProgress))uploadProgressBlock
@@ -263,6 +308,7 @@ NS_ASSUME_NONNULL_BEGIN
  @param uploadProgressBlock A block object to be executed when the upload progress is updated. Note this block is called on the session queue, not the main queue.
  @param completionHandler A block object to be executed when the task finishes. This block has no return value and takes three arguments: the server response, the response object created by that serializer, and the error that occurred, if any.
  */
+// 通过request创建一个stream数据上传的 uploadTask
 - (NSURLSessionUploadTask *)uploadTaskWithStreamedRequest:(NSURLRequest *)request
                                                  progress:(nullable void (^)(NSProgress *uploadProgress))uploadProgressBlock
                                         completionHandler:(nullable void (^)(NSURLResponse *response, id _Nullable responseObject, NSError * _Nullable error))completionHandler;
@@ -281,6 +327,7 @@ NS_ASSUME_NONNULL_BEGIN
 
  @warning If using a background `NSURLSessionConfiguration` on iOS, these blocks will be lost when the app is terminated. Background sessions may prefer to use `-setDownloadTaskDidFinishDownloadingBlock:` to specify the URL for saving the downloaded file, rather than the destination block of this method.
  */
+// destination的block需要一个返回值，作为下载文件的目标地址url 。 如果是一个后台下载任务，那么这里的回调block不会被调用。 需要使用-setDownloadTaskDidFinishDownloadingBlock: 来操作文件的保存
 - (NSURLSessionDownloadTask *)downloadTaskWithRequest:(NSURLRequest *)request
                                              progress:(nullable void (^)(NSProgress *downloadProgress))downloadProgressBlock
                                           destination:(nullable NSURL * (^)(NSURL *targetPath, NSURLResponse *response))destination
@@ -294,6 +341,8 @@ NS_ASSUME_NONNULL_BEGIN
  @param destination A block object to be executed in order to determine the destination of the downloaded file. This block takes two arguments, the target path & the server response, and returns the desired file URL of the resulting download. The temporary file used during the download will be automatically deleted after being moved to the returned URL.
  @param completionHandler A block to be executed when a task finishes. This block has no return value and takes three arguments: the server response, the path of the downloaded file, and the error describing the network or parsing error that occurred, if any.
  */
+// 通过resumeData来创建一个断点下载的downloadTask
+
 - (NSURLSessionDownloadTask *)downloadTaskWithResumeData:(NSData *)resumeData
                                                 progress:(nullable void (^)(NSProgress *downloadProgress))downloadProgressBlock
                                              destination:(nullable NSURL * (^)(NSURL *targetPath, NSURLResponse *response))destination
@@ -310,6 +359,8 @@ NS_ASSUME_NONNULL_BEGIN
 
  @return An `NSProgress` object reporting the upload progress of a task, or `nil` if the progress is unavailable.
  */
+
+//根据NSURLSessionTask获取对应的任务完成进度NSProgress
 - (nullable NSProgress *)uploadProgressForTask:(NSURLSessionTask *)task;
 
 /**
@@ -319,6 +370,8 @@ NS_ASSUME_NONNULL_BEGIN
 
  @return An `NSProgress` object reporting the download progress of a task, or `nil` if the progress is unavailable.
  */
+
+//根据NSURLSessionTask获取对应下载任务的进度NSProgress
 - (nullable NSProgress *)downloadProgressForTask:(NSURLSessionTask *)task;
 
 ///-----------------------------------------
@@ -330,6 +383,8 @@ NS_ASSUME_NONNULL_BEGIN
 
  @param block A block object to be executed when the managed session becomes invalid. The block has no return value, and takes two arguments: the session, and the error related to the cause of invalidation.
  */
+// 会在`URLSession:didBecomeInvalidWithError:`中被调用
+//设置session无效时执行的回调块
 - (void)setSessionDidBecomeInvalidBlock:(nullable void (^)(NSURLSession *session, NSError *error))block;
 
 /**
@@ -337,6 +392,9 @@ NS_ASSUME_NONNULL_BEGIN
 
  @param block A block object to be executed when a connection level authentication challenge has occurred. The block returns the disposition of the authentication challenge, and takes three arguments: the session, the authentication challenge, and a pointer to the credential that should be used to resolve the challenge.
  */
+// 设置网络连接信任的block操作 会在URLSession:didReceiveChallenge:completionHandler:时调用
+//设置session收到challenge时执行的回调块
+
 - (void)setSessionDidReceiveAuthenticationChallengeBlock:(nullable NSURLSessionAuthChallengeDisposition (^)(NSURLSession *session, NSURLAuthenticationChallenge *challenge, NSURLCredential * _Nullable __autoreleasing * _Nullable credential))block;
 
 ///--------------------------------------
@@ -348,6 +406,8 @@ NS_ASSUME_NONNULL_BEGIN
 
  @param block A block object to be executed when a task requires a new request body stream.
  */
+
+//设置session需要新的流时执行的回调块
 - (void)setTaskNeedNewBodyStreamBlock:(nullable NSInputStream * (^)(NSURLSession *session, NSURLSessionTask *task))block;
 
 /**
@@ -355,7 +415,10 @@ NS_ASSUME_NONNULL_BEGIN
 
  @param block A block object to be executed when an HTTP request is attempting to perform a redirection to a different URL. The block returns the request to be made for the redirection, and takes four arguments: the session, the task, the redirection response, and the request corresponding to the redirection response.
  */
-- (void)setTaskWillPerformHTTPRedirectionBlock:(nullable NSURLRequest * _Nullable (^)(NSURLSession *session, NSURLSessionTask *task, NSURLResponse *response, NSURLRequest *request))block;
+
+// 请求需要一个全新的，未打开的数据时调用。特别是请求一个body失败时，可以通过这个方法给一个新的body- (void)URLSession:(NSURLSession *)session
+//设置session的任务需要执行重定向时执行的回调块
+- (void)setTaskWillPerformHTTPRedirectionBlock:(nullable NSURLRequest * (^)(NSURLSession *session, NSURLSessionTask *task, NSURLResponse *response, NSURLRequest *request))block;
 
 /**
  Sets a block to be executed when a session task has received a request specific authentication challenge, as handled by the `NSURLSessionTaskDelegate` method `URLSession:task:didReceiveChallenge:completionHandler:`.
@@ -415,7 +478,7 @@ NS_ASSUME_NONNULL_BEGIN
 
  @param block A block object to be executed once all messages enqueued for a session have been delivered. The block has no return value and takes a single argument: the session.
  */
-- (void)setDidFinishEventsForBackgroundURLSessionBlock:(nullable void (^)(NSURLSession *session))block AF_API_UNAVAILABLE(macos);
+- (void)setDidFinishEventsForBackgroundURLSessionBlock:(nullable void (^)(NSURLSession *session))block;
 
 ///-----------------------------------------------
 /// @name Setting Download Task Delegate Callbacks

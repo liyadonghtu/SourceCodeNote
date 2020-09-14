@@ -269,10 +269,10 @@
 			isa = PBXGroup;
 			children = (
 				FE484478250F431C0001817B /* AFCompatibilityMacros.h */,
-				FE484473250F431C0001817B /* AFURLSessionManager.m */,
-				FE484471250F431C0001817B /* AFHTTPSessionManager.m */,
-				FE484479250F431C0001817B /* AFHTTPSessionManager.h */,
 				FE48446E250F431C0001817B /* AFURLSessionManager.h */,
+				FE484473250F431C0001817B /* AFURLSessionManager.m */,
+				FE484479250F431C0001817B /* AFHTTPSessionManager.h */,
+				FE484471250F431C0001817B /* AFHTTPSessionManager.m */,
 			);
 			path = NSURLSession;
 			sourceTree = "<group>";

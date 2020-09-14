@@ -26,12 +26,18 @@
     [self testGETrequest];
     
 }
+/**
+1.请求流程 ： url -- session -- request -- task -- resume
+ 初始化
+ 回调了进度
+ 一个完整的网络请求： 1.发起请求，2.进度，3.数据返回
+ */
 
 - (void)testGETrequest{
     
     AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
     NSString *urlstr = @"http://baidu.book.com";
-    NSDictionary *paramDic = @{@"page":@32, @"name":@"历史"};
+    NSDictionary *paramDic = @{@"page":@[@"listOne",@"middle", @"list2"], @"name":@"history"};
     [manager GET:urlstr parameters:paramDic progress:^(NSProgress * _Nonnull downloadProgress) {
         
     } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {

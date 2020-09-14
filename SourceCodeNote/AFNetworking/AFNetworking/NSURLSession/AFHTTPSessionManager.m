@@ -63,22 +63,31 @@
     return [self initWithBaseURL:nil sessionConfiguration:configuration];
 }
 
+/*
+ 1.调用父类的方法
+ 2.给url添加“/”
+ 3.给requestSerializer、responseSerializer设置默认值
+ */
 - (instancetype)initWithBaseURL:(NSURL *)url
            sessionConfiguration:(NSURLSessionConfiguration *)configuration
 {
+    //调用父类初始化方法
     self = [super initWithSessionConfiguration:configuration];
     if (!self) {
         return nil;
     }
 
-    //对传过来的BaseUrl进行处理，如果有值且最后不包含/，url加上"/"
     // Ensure terminal slash for baseURL path, so that NSURL +URLWithString:relativeToURL: works as expected
+    /*
+     为了确保NSURL +URLWithString:relativeToURL: works可以正确执行，在baseurlpath的最后添加‘/’
+     */
+    //url有值且没有‘/’,那么在url的末尾添加‘/’
     if ([[url path] length] > 0 && ![[url absoluteString] hasSuffix:@"/"]) {
         url = [url URLByAppendingPathComponent:@""];
     }
-
     self.baseURL = url;
-
+    //给requestSerializer、responseSerializer设置默认值
+    // http : 请求行+请求头+请求体
     self.requestSerializer = [AFHTTPRequestSerializer serializer];
     self.responseSerializer = [AFJSONResponseSerializer serializer];
 
@@ -99,23 +108,6 @@
     [super setResponseSerializer:responseSerializer];
 }
 
-@dynamic securityPolicy;
-
-- (void)setSecurityPolicy:(AFSecurityPolicy *)securityPolicy {
-    if (securityPolicy.SSLPinningMode != AFSSLPinningModeNone && ![self.baseURL.scheme isEqualToString:@"https"]) {
-        NSString *pinningMode = @"Unknown Pinning Mode";
-        switch (securityPolicy.SSLPinningMode) {
-            case AFSSLPinningModeNone:        pinningMode = @"AFSSLPinningModeNone"; break;
-            case AFSSLPinningModeCertificate: pinningMode = @"AFSSLPinningModeCertificate"; break;
-            case AFSSLPinningModePublicKey:   pinningMode = @"AFSSLPinningModePublicKey"; break;
-        }
-        NSString *reason = [NSString stringWithFormat:@"A security policy configured with `%@` can only be applied on a manager with a secure base URL (i.e. https)", pinningMode];
-        @throw [NSException exceptionWithName:@"Invalid Security Policy" reason:reason userInfo:nil];
-    }
-
-    [super setSecurityPolicy:securityPolicy];
-}
-
 #pragma mark -
 
 - (NSURLSessionDataTask *)GET:(NSString *)URLString
@@ -134,6 +126,9 @@
                       failure:(void (^)(NSURLSessionDataTask * _Nullable, NSError * _Nonnull))failure
 {
 
+    // 请求行 + 请求头 + 请求体
+    // 多线程 task ?
+    //返回一个task，然后开始网络请求
     NSURLSessionDataTask *dataTask = [self dataTaskWithHTTPMethod:@"GET"
                                                         URLString:URLString
                                                        parameters:parameters
@@ -142,6 +137,7 @@
                                                           success:success
                                                           failure:failure];
 
+    //开始网络请求
     [dataTask resume];
 
     return dataTask;
@@ -204,9 +200,12 @@
     NSMutableURLRequest *request = [self.requestSerializer multipartFormRequestWithMethod:@"POST" URLString:[[NSURL URLWithString:URLString relativeToURL:self.baseURL] absoluteString] parameters:parameters constructingBodyWithBlock:block error:&serializationError];
     if (serializationError) {
         if (failure) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu"
             dispatch_async(self.completionQueue ?: dispatch_get_main_queue(), ^{
                 failure(nil, serializationError);
             });
+#pragma clang diagnostic pop
         }
 
         return nil;
@@ -264,7 +263,7 @@
 
     return dataTask;
 }
-
+//1.生成request，2.通过request成成task
 - (NSURLSessionDataTask *)dataTaskWithHTTPMethod:(NSString *)method
                                        URLString:(NSString *)URLString
                                       parameters:(id)parameters
@@ -274,20 +273,31 @@
                                          failure:(void (^)(NSURLSessionDataTask *, NSError *))failure
 {
     NSError *serializationError = nil;
-    
-    //把参数，还有各种东西转化为一个request
+    /*
+     1.先调用AFHTTPRequestSerializer的requestWithMethod函数构建request
+     2.处理request构建产生的错误 – serializationError
+     //relativeToURL表示将URLString拼接到baseURL后面
+
+     */
     NSMutableURLRequest *request = [self.requestSerializer requestWithMethod:method URLString:[[NSURL URLWithString:URLString relativeToURL:self.baseURL] absoluteString] parameters:parameters error:&serializationError];
     
     if (serializationError) {
         if (failure) {
+            //http://fuckingclangwarnings.com/#semantic
+            //xcode忽略编译器的警告,diagnostic:诊断的
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu"
+            //completionQueue不存在返回dispatch_get_main_queue
             dispatch_async(self.completionQueue ?: dispatch_get_main_queue(), ^{
                 failure(nil, serializationError);
             });
+#pragma clang diagnostic pop
         }
 
         return nil;
     }
 
+    //此时的request已经将参数拼接在url后面
     __block NSURLSessionDataTask *dataTask = nil;
     dataTask = [self dataTaskWithRequest:request
                           uploadProgress:uploadProgress
@@ -347,10 +357,11 @@
 
     return self;
 }
-
+// 对baseURL,session.configuration,requestSerializer,responseSerializer,securityPolicy进行编码
 - (void)encodeWithCoder:(NSCoder *)coder {
+    // AFHTTPSessionManager的父类为AFURLSessionManager，所以先调用父类方法
     [super encodeWithCoder:coder];
-
+// 因为configuration是一个对象，所以要考虑是否实现了NSCoding
     [coder encodeObject:self.baseURL forKey:NSStringFromSelector(@selector(baseURL))];
     if ([self.session.configuration conformsToProtocol:@protocol(NSCoding)]) {
         [coder encodeObject:self.session.configuration forKey:@"sessionConfiguration"];
@@ -363,7 +374,7 @@
 }
 
 #pragma mark - NSCopying
-
+// 深拷贝，递归地拷贝下去
 - (instancetype)copyWithZone:(NSZone *)zone {
     AFHTTPSessionManager *HTTPClient = [[[self class] allocWithZone:zone] initWithBaseURL:self.baseURL sessionConfiguration:self.session.configuration];
 
