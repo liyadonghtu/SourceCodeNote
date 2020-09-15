@@ -32,6 +32,7 @@
 @property (nonatomic, copy) void (^failureBlock)(NSURLRequest*, NSHTTPURLResponse*, NSError*);
 @end
 
+// 下载图片的回调
 @implementation AFImageDownloaderResponseHandler
 
 - (instancetype)initWithUUID:(NSUUID *)uuid
@@ -51,6 +52,7 @@
 
 @end
 
+// 处理重复下载
 @interface AFImageDownloaderMergedTask : NSObject
 @property (nonatomic, strong) NSString *URLIdentifier;
 @property (nonatomic, strong) NSUUID *identifier;
@@ -93,6 +95,7 @@
 
 @end
 
+// 核心类: 下载
 @interface AFImageDownloader ()
 
 @property (nonatomic, strong) dispatch_queue_t synchronizationQueue;
@@ -106,20 +109,10 @@
 
 @end
 
+
 @implementation AFImageDownloader
 
 + (NSURLCache *)defaultURLCache {
-    
-    // It's been discovered that a crash will occur on certain versions
-    // of iOS if you customize the cache.
-    //
-    // More info can be found here: https://devforums.apple.com/message/1102182#1102182
-    //
-    // When iOS 7 support is dropped, this should be modified to use
-    // NSProcessInfo methods instead.
-    if ([[[UIDevice currentDevice] systemVersion] compare:@"8.2" options:NSNumericSearch] == NSOrderedAscending) {
-        return [NSURLCache sharedURLCache];
-    }
     return [[NSURLCache alloc] initWithMemoryCapacity:20 * 1024 * 1024
                                          diskCapacity:150 * 1024 * 1024
                                              diskPath:@"com.alamofire.imagedownloader"];
@@ -143,11 +136,7 @@
 
 - (instancetype)init {
     NSURLSessionConfiguration *defaultConfiguration = [self.class defaultURLSessionConfiguration];
-    return [self initWithSessionConfiguration:defaultConfiguration];
-}
-
-- (instancetype)initWithSessionConfiguration:(NSURLSessionConfiguration *)configuration {
-    AFHTTPSessionManager *sessionManager = [[AFHTTPSessionManager alloc] initWithSessionConfiguration:configuration];
+    AFHTTPSessionManager *sessionManager = [[AFHTTPSessionManager alloc] initWithSessionConfiguration:defaultConfiguration];
     sessionManager.responseSerializer = [AFImageResponseSerializer serializer];
 
     return [self initWithSessionManager:sessionManager
@@ -249,16 +238,21 @@
 
         createdTask = [self.sessionManager
                        dataTaskWithRequest:request
-                       uploadProgress:nil
-                       downloadProgress:nil
                        completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
                            dispatch_async(self.responseQueue, ^{
+                               
+                               
+                               
                                __strong __typeof__(weakSelf) strongSelf = weakSelf;
-                               AFImageDownloaderMergedTask *mergedTask = strongSelf.mergedTasks[URLIdentifier];
+                               
+                               
+                               AFImageDownloaderMergedTask *mergedTask = self.mergedTasks[URLIdentifier];
                                if ([mergedTask.identifier isEqual:mergedTaskIdentifier]) {
                                    mergedTask = [strongSelf safelyRemoveMergedTaskWithURLIdentifier:URLIdentifier];
                                    if (error) {
+                                       // 单个回调
                                        for (AFImageDownloaderResponseHandler *handler in mergedTask.responseHandlers) {
+                                           
                                            if (handler.failureBlock) {
                                                dispatch_async(dispatch_get_main_queue(), ^{
                                                    handler.failureBlock(request, (NSHTTPURLResponse*)response, error);
@@ -266,9 +260,8 @@
                                            }
                                        }
                                    } else {
-                                       if ([strongSelf.imageCache shouldCacheImage:responseObject forRequest:request withAdditionalIdentifier:nil]) {
-                                           [strongSelf.imageCache addImage:responseObject forRequest:request withAdditionalIdentifier:nil];
-                                       }
+                                       
+                                       [strongSelf.imageCache addImage:responseObject forRequest:request withAdditionalIdentifier:nil];
 
                                        for (AFImageDownloaderResponseHandler *handler in mergedTask.responseHandlers) {
                                            if (handler.successBlock) {
@@ -289,6 +282,7 @@
         AFImageDownloaderResponseHandler *handler = [[AFImageDownloaderResponseHandler alloc] initWithUUID:receiptID
                                                                                                    success:success
                                                                                                    failure:failure];
+        
         AFImageDownloaderMergedTask *mergedTask = [[AFImageDownloaderMergedTask alloc]
                                                    initWithURLIdentifier:URLIdentifier
                                                    identifier:mergedTaskIdentifier
